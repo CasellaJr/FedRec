@@ -70,6 +70,8 @@ for myseed in my_seeds:
         project = "SSFL"
         if args.benchmarking:
             run_name = f"SSFL_{myseed}_EpR{args.epochs_per_round}_BENCHMARKING"
+        elif args.denoising:
+            run_name = f"DENOSING_{myseed}_EpR{args.epochs_per_round}"
         else:
             run_name = f"SSFL_{myseed}_EpR{args.epochs_per_round}"
         tags = ["FL", "SSL", "SSFL"]
