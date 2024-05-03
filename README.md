@@ -14,6 +14,11 @@ This repository contains the code to run and reproduce the experiments for feder
 - Run the experiments: `python3 code/federated.py`
 - Run `python3 code/federated.py --help` to check all the available training options. Use `--debug` to disable WandB metrics tracking. Note that right now there may be a bug that still asks for your WandB project and entities. If so, remove all the parts of the code containing WandB stuff, or simply create an account on WandB and adjust the project and entity according to your credentials.
 
+## Example
+- Centralized: `python3 federated.py --debug -e 100 -r 1`
+- Federated baseline: `python3 federated.py --debug`
+- FL pipeline with image denoising: `python3 federated.py --debug --denoising`
+
 ## Results
 ...
 
