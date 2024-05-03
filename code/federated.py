@@ -68,10 +68,12 @@ for myseed in my_seeds:
     else:
         entity = "mlgroup"
         project = "SSFL"
-        if args.benchmarking:
-            run_name = f"SSFL_{myseed}_EpR{args.epochs_per_round}_BENCHMARKING"
+        if args.benchmarking and args.denoising:
+            run_name = f"DENOSING_{myseed}_EpR{args.epochs_per_round}_BENCHMARKING"
         elif args.denoising:
             run_name = f"DENOSING_{myseed}_EpR{args.epochs_per_round}"
+        elif args.benchmarking:
+            run_name = f"BENCHMARKING_{myseed}_EpR{args.epochs_per_round}"
         else:
             run_name = f"SSFL_{myseed}_EpR{args.epochs_per_round}"
         tags = ["FL", "SSL", "SSFL"]
