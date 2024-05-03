@@ -27,13 +27,14 @@ simplefilter(action='ignore')
 from training import *
 from model import *
 from eval import eval_model
-from server_aggregation import fed_avg
+from server_aggregation import *
 from datasets import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-r', '--rounds', type=int, default=100, help="Federated training rounds")
 parser.add_argument('-e', '--epochs-per-round', type=int, default=1, help="Number of local steps of gradient descent before performing weighted aggregation.")
 parser.add_argument('--benchmarking', action='store_true', help="Use the hyperparameters that Alessio found be the best for S.G.L.P. dataset")
+parser.add_argument('--denoising', action='store_true', help="Exploit unlabeled datasets in a federated scenario by doing image denoising")
 parser.add_argument('--debug', action='store_true', help="Disable WandB metrics tracking")
 args = parser.parse_args()
 
@@ -79,10 +80,12 @@ for myseed in my_seeds:
             wandb.init(project=project, entity=entity, group=f"{run_name}", name=run_name, tags=tags)
 
     class Client:
-        def __init__(self, train_set, test_set):
+        def __init__(self, train_set, test_set, location):
             self.train_data = train_set
             self.test_data = test_set
+            self.location = location
             self.model = None
+            self.model_without_fc = None
             self.optimizer = None
             self.train_loader = None
             self.test_loader = None
@@ -94,6 +97,9 @@ for myseed in my_seeds:
             else:
                 self.model = MLP(num_classes)
                 self.model.initialize_weights()
+
+        def create_model_without_fc(self):
+            self.model_without_fc = MyModelWithoutFC(self.model.model)
                 
         def create_optimizer(self):
             if args.benchmarking:
@@ -113,7 +119,7 @@ for myseed in my_seeds:
             self.train_loader = train_loader
             self.test_loader = test_loader 
 
-        def fit_linear_model(self, num_client, round):
+        def fit(self, num_client, round):
             # Extract features and then train the linear model
             self.create_loaders()
             # Define dictionary of loaders
@@ -152,6 +158,38 @@ for myseed in my_seeds:
             acc = 100.0*acc
             return acc
 
+    class UnlabeledClient:
+        def __init__(self, train_set, location):
+            self.train_data = train_set
+            self.location = location
+            self.model = None
+            self.model_without_fc = None
+            self.optimizer = None
+            self.train_loader = None
+            
+        def create_model(self):
+            self.model = DenoisingResNet()
+
+        def create_model_without_fc(self):
+            self.model_without_fc = MyModelWithoutFC(self.model.model)
+
+        def create_optimizer(self):
+            if args.benchmarking:
+                self.optimizer = optim.SGD(self.model.parameters(), lr=1e-4, momentum=0.8, weight_decay=1e-5)
+            else:
+                self.optimizer = optim.Adam(self.model.parameters(), lr=0.001) 
+                           
+        def create_loaders(self):
+            # Transform with Rocket
+            c_train = self.train_data
+            train_loader = DataLoader(c_train, batch_size=8, num_workers=2, drop_last=True, shuffle=False, generator=generator)
+            self.train_loader = train_loader
+
+        def fit(self, num_client, round):
+            # Extract features and then train the linear model
+            self.create_loaders()           
+            denoising(num_client, self.model, self.train_loader, self.optimizer, criterion_unlabeled, round, epochs=args.epochs_per_round, dev=dev)
+
     class Server:
         def __init__(self, clients: List[Client]):
             self.clients = clients
@@ -162,8 +200,9 @@ for myseed in my_seeds:
 
     #CREATION OF NUM_CLIENT CLIENTS AND OF A SERVER
     #import data
-    sglp_num_classes, sglp_train_data, sglp_test_data = import_data("ceilometer_dataset1.1")
-    cg_num_classes, cg_train_data, cg_test_data = import_data("CapoGranitola")
+    sglp_num_classes, sglp_train_data, sglp_test_data, sglp_name = import_data("ceilometer_dataset1.1")
+    cg_num_classes, cg_train_data, cg_test_data, cg_name = import_data("CapoGranitola")
+
     if sglp_num_classes == cg_num_classes:
         num_classes = sglp_num_classes
 
@@ -175,16 +214,32 @@ for myseed in my_seeds:
     #aggregated model
     if num_classes == 2:
         aggregated_model = MyModel(num_classes-1)
+        aggregated_model_withoutFC = MyModelWithoutFC(aggregated_model.model)
     else:
         aggregated_model = MyModel(num_classes)
+        aggregated_model_withoutFC = MyModelWithoutFC(aggregated_model.model)
 
-    client_sglp = Client(sglp_train_data, sglp_test_data)
-    client_cg = Client(cg_train_data, cg_test_data)
-    clients = [client_sglp, client_cg]
+    client_sglp = Client(sglp_train_data, sglp_test_data, sglp_name)
+    client_cg = Client(cg_train_data, cg_test_data, cg_name)
+    if args.denoising:
+        roma_train_data, roma_name = import_unlabeled_data("Roma")
+        taranto_train_data, taranto_name = import_unlabeled_data("Taranto")
+        aosta_train_data, aosta_name = import_unlabeled_data("Aosta")
+        criterion_unlabeled = nn.MSELoss()
+        client_roma = UnlabeledClient(roma_train_data, roma_name)
+        client_taranto = UnlabeledClient(taranto_train_data, taranto_name)
+        client_aosta = UnlabeledClient(aosta_train_data, aosta_name)
+        clients = [client_sglp, client_cg, client_roma, client_taranto, client_aosta]
+        unlabeled_clients = [client_sglp, client_cg, client_roma, client_taranto, client_aosta]
+    else:
+        clients = [client_sglp, client_cg]
+
+    labeled_clients = [client_sglp, client_cg]
     server = Server(clients)
 
     rounds = args.rounds
     PATHAGG = "state_dict_aggregated_model.pt"
+    PATHAGG_NOFC = "state_dict_aggregated_model_withoutFC.pt"
     locally_training_aggregated_accuracy_f1 = []
     locally_tested_aggregated_accuracy_f1 = []
 
@@ -194,18 +249,36 @@ for myseed in my_seeds:
             if round == 0:
                 client.create_model()
             client.create_optimizer()
-            client.fit_linear_model(num_client, round)
+            client.fit(num_client, round)
 
         models = []
+        models_without_fc = []
         for client in clients:
-            models.append(client.model)
-        fed_avg(aggregated_model, *models) #average of parameters
+            if args.denoising:
+                client.create_model_without_fc()
+                if client.location in ["ceilometer_dataset1.1", "CapoGranitola"]:
+                    models_without_fc.append(client.model_without_fc)
+                else:
+                    models_without_fc.append(client.model_without_fc)
+                fed_avg(aggregated_model_withoutFC, *models_without_fc) #average of parameters without fc
+                modelagg_withoutfc_sd = torch.save(aggregated_model_withoutFC.state_dict(), PATHAGG_NOFC)
+                if client.location in ["ceilometer_dataset1.1", "CapoGranitola"]:
+                    copy_weights(client.model, aggregated_model_withoutFC)
+                    models.append(client.model)
+            else:
+                models.append(client.model)
+        
+        fed_avg(aggregated_model, *models)
         modelaggsd = torch.save(aggregated_model.state_dict(), PATHAGG)
         #loading the aggregated model parameters in the local models
-        for client in clients:
+        for client in labeled_clients:
             locally_training_aggregated_accuracy_f1.append(eval_model(num_classes, aggregated_model, client.train_loader))
             locally_tested_aggregated_accuracy_f1.append(eval_model(num_classes, aggregated_model, client.test_loader))
             client.model.load_state_dict(torch.load(PATHAGG))
+        if args.denoising:
+            for client in unlabeled_clients:
+                copy_weights(client.model, aggregated_model_withoutFC)
+                #client.model.load_state_dict(torch.load(PATHAGG_NOFC))
         #testing the aggregated model
         tr_aggregated_accuracy = torch.stack([item[0] for item in locally_training_aggregated_accuracy_f1]).mean().item()
         aggregated_accuracy = torch.stack([item[0] for item in locally_tested_aggregated_accuracy_f1]).mean().item()

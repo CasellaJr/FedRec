@@ -3,12 +3,12 @@ import torch
 import torchvision
 import numpy as np
 import torch.nn as nn
+import tqdm
 import wandb
 
 from sklearn.metrics import f1_score
 from matplotlib import pyplot as plt
 from torchvision import utils
-
 
 
 def train(client, net, num_classes, loaders, optimizer, criterion, round, LOG_WANDB=True, epochs=100, dev=torch.device('cuda')):
@@ -91,6 +91,23 @@ def train(client, net, num_classes, loaders, optimizer, criterion, round, LOG_WA
                   f"Tef1={epoch_f1['test']:.4f},")
     except KeyboardInterrupt:
         print("Interrupted")
+
+
+def denoising(client, net, train_loader, optimizer, criterion, round, epochs=100, dev=torch.device('cuda')):
+    for epoch in range(epochs):
+        net.train()
+        running_loss = 0.0
+        for images in tqdm.tqdm(train_loader, desc=f'Epoch {epoch + 1}/{epochs}'):
+            images = images.to(dev)
+            net = net.to(dev)
+            optimizer.zero_grad()
+            outputs = net(images)
+            loss = criterion(outputs, images)  # MSE loss between noisy input and original image
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item() * images.size(0)
+        epoch_loss = running_loss / len(train_loader.dataset)
+        print(f"Client {client+1}, epoch [{epoch + 1}/{epochs}], Loss: {epoch_loss:.4f}")
 
 def init(layer):
     if isinstance(layer, nn.Linear):

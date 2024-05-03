@@ -3,8 +3,10 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision
 import numpy as np
+import os
 
 from torchvision import datasets, models, transforms
+from PIL import Image
 
 '''
 ceilometer_dataset
@@ -55,4 +57,30 @@ def import_data(dataset_name):
 
     num_classes = 2
 
-    return num_classes, train_data, test_data
+    return num_classes, train_data, test_data, dataset_name
+
+class UnlabeledDataset(torch.utils.data.Dataset):
+    def __init__(self, data_path, transform=None):
+        self.data_path = data_path
+        self.transform = transform
+        # Get a list of all image paths in the data directory
+        self.image_paths = [os.path.join(data_path, f) for f in os.listdir(data_path) if os.path.isfile(os.path.join(data_path, f))]
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        image_path = self.image_paths[idx]
+        # Load image using PIL or OpenCV
+        image = Image.open(image_path).convert('RGB')
+        if self.transform:
+            image = self.transform(image)
+        return image
+
+def import_unlabeled_data(dataset_name):
+
+    root_dir =  "../" + dataset_name + "/"
+
+    train_data = UnlabeledDataset(root_dir, transforms_train)
+
+    return train_data, dataset_name
