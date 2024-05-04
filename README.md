@@ -20,7 +20,11 @@ This repository contains the code to run and reproduce the experiments for feder
 - FL pipeline with image denoising: `python3 federated.py --debug --denoising`
 
 ## Results
-...
+The results directory reports accuracies and F1-scores of all the considered approaches (proposed method and baselines).
 
 ## Contributors
-...
+* Bruno Casella <bruno.casella@unito.it>
+
+* Alessio Barbaro Chisari <alessio.chisari@phd.unict.it>
+
+* Mario Valerio Giuffrida <valerio.giuffrida@nottingham.ac.uk>
