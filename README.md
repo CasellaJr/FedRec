@@ -19,9 +19,6 @@ BIBTEX:
 }
 ```
 
-Image Reconstruction an Effective Way for Optimizing Federated Learning
-
-
 This repository contains the code to run and reproduce the experiments for federating the ROCKET algorithm in the following settings:
 - Centralized (non-federated)
 - Federated baseline (FedAvg with all labeled data)
