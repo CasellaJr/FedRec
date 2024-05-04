@@ -1,4 +1,24 @@
 # Image-Reconstruction-as-an-Effective-Way-for-Optimizing-Federated-Learning
+
+> ABSTRACT
+
+BIBTEX:
+```bibtex
+@inproceedings{,
+  author  = {},
+  title   = {},
+  booktitle = {},
+  doi = {},
+  location = {},
+  month = ,
+  url = {},
+  year = {},
+  volume  = {},
+  number  = {},
+  pages   = {X}
+}
+```
+
 Image Reconstruction an Effective Way for Optimizing Federated Learning
 
 
