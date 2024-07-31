@@ -1,28 +1,37 @@
-# Image-Reconstruction-as-an-Effective-Way-for-Optimizing-Federated-Learning
+<div align="center">
 
-> ABSTRACT
+# Federated Learning in a Semi-Supervised Environment for Earth Observation Data
+Bruno Casella, Alessio Barbaro Chisari, Marco Aldinucci, Sebastiano Battiato, Mario Valerio Giuffrida
 
-BIBTEX:
-```bibtex
-@inproceedings{,
-  author  = {},
-  title   = {},
-  booktitle = {},
-  doi = {},
-  location = {},
-  month = ,
-  url = {},
-  year = {},
-  volume  = {},
-  number  = {},
-  pages   = {X}
-}
-```
+[![Conference](https://img.shields.io/badge/ESANN-2024-orange)](add_link)
+
+</div>
+
+# Overview
 
 This repository contains the code to run and reproduce the experiments for federating the ROCKET algorithm in the following settings:
 - Centralized (non-federated)
 - Federated baseline (FedAvg with all labeled data)
 - Semi-Supervised Federated Learning with Image Reconstruction
+
+Please cite as:
+
+```bibtex
+@inproceedings{casella2024fedrec,
+  author  = {Casella, Bruno and Chisari, Alessio Barbaro and Aldinucci, Marco and Battiato, Sebastiano and Giuffrida, Mario Valerio},
+  title   = {Federated Learning in a Semi-Supervised Environment for Earth Observation Data,
+  booktitle    = {32nd European Symposium on Artificial Neural Networks, Computational Intelligence and Machine Learning, {ESANN} 2024, Bruges, Belgium, October 9-11, 2024},
+  year         = {2024},
+  doi          = {},
+  pages = {},
+  publisher = {},
+  url = {}
+}
+```
+
+# Abstract
+> We propose FedRec, a federated learning workflow taking advantage of unlabelled data in a semi-supervised environment to assist in the training of a supervised aggregated model. In our proposed method, an encoder architecture extracting features from unlabelled data is aggregated with the feature extractor of a classification model via weight averaging. The fully connected layers of the supervised models are also averaged in a federated fashion. We show the effectiveness of our approach by comparing it with the state-of-the-art federated algorithm, an isolated and a centralised baseline, on novel cloud detection datasets.
+
 
 ## Usage
 - Clone this repo: `git clone`
