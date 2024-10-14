@@ -1,9 +1,9 @@
 <div align="center">
 
-# ON THE CLOUD DETECTION FROM BACKSCATTERED IMAGES GENERATED FROM A LIDAR-BASED CEILOMETER: CURRENT STATE AND OPPORTUNITIES
-Alessio Barbaro Chisari, Alessandro Ortis, Luca Guarnera, Wladimiro Carlo Patatu, Rosaria Ausilia Giandolfo, Emanuele Spampinato, Sebastiano Battiato, Mario Valerio Giuffrida
+# Federated Learning in a Semi-Supervised Environment for Earth Observation Data
+Bruno Casella, Alessio Barbaro Chisari, Marco Aldinucci, Sebastiano Battiato, Mario Valerio Giuffrida
 
-[![Conference](https://img.shields.io/badge/ICIP-2024)]
+[![Conference](https://img.shields.io/badge/ESANN-2024-orange)](add_link)
 
 </div>
 
