@@ -38,6 +38,7 @@ parser.add_argument('-e', '--epochs-per-round', type=int, default=1, help="Numbe
 parser.add_argument('-c', '--clients', type=int, default=2, help="Number of federation clients.")
 parser.add_argument('--denoising', action='store_true', help="Exploit unlabeled datasets in a federated scenario by doing image denoising")
 parser.add_argument('--personalization', action='store_true', help="Leave that each client trains its own classifier rather than averaging")
+parser.add_argument('-w', '--weighted', action='store_true', help="Weighted average")
 parser.add_argument('--debug', action='store_true', help="Disable WandB metrics tracking")
 args = parser.parse_args()
 
@@ -100,6 +101,7 @@ for myseed in my_seeds:
             self.scheduler = None
             self.train_loader = None
             self.test_loader = None
+            self.importance = False
             
         def create_model(self):
             if num_classes == 2:
@@ -198,6 +200,7 @@ for myseed in my_seeds:
             self.optimizer = None
             self.scheduler = None
             self.train_loader = None
+            self.importance = True
             
         def create_model(self):
             self.model = DenoisingResNet()
@@ -337,43 +340,25 @@ for myseed in my_seeds:
 
         models = []
         models_without_fc = []
-        '''
-        for client in clients:
-            if args.denoising:
-                if client.labeled == 'yes':
-                    client.create_model_without_fc()
-                    models_without_fc.append(client.model_without_fc)
-                else:
-                    models.append(client.model)
-            else:
+
+        
+        if args.weighted:
+            models = [(client.model, client.importance) for client in clients]
+        else:
+            for client in clients:
                 models.append(client.model)
 
         if args.denoising:
-            if models_without_fc:
-                fed_avg(aggregated_model_withoutFC, *models_without_fc, exclude_fc=True)
-                modelagg_withoutfc_sd = torch.save(aggregated_model_withoutFC.state_dict(), PATHAGG_NOFC)
-            if models:
-                fed_avg(aggregated_model, *models, exclude_fc=False)
-                modelagg_sd = torch.save(aggregated_model.state_dict(), PATHAGG)
-        else:
-            fed_avg(aggregated_model, *models, exclude_fc=False)
-            modelagg_sd = torch.save(aggregated_model.state_dict(), PATHAGG)
-
-        for client in clients:
-            if args.personalization:
-                copy_weights(client.model, aggregated_model_withoutFC, exclude_fc=True)
+            if args.weighted:
+                weighted_fed_avg(aggregated_model, *models, num_labeled=n_labeled, exclude_fc=False)
             else:
-                copy_weights(client.model, aggregated_model, exclude_fc=False)
-        '''
-        for client in clients:
-            models.append(client.model)
-
-        if args.denoising:
-            #fed_avg(aggregated_model_withoutFC, *models, num_labeled=n_labeled, exclude_fc=True)
-            fed_avg(aggregated_model, *models, num_labeled=n_labeled, exclude_fc=False)
+                fed_avg(aggregated_model, *models, num_labeled=n_labeled, exclude_fc=False)
             modelagg_sd = torch.save(aggregated_model.state_dict(), PATHAGG)
         else:
-            fed_avg(aggregated_model, *models, num_labeled=n_labeled, exclude_fc=False)
+            if args.weighted:
+                weighted_fed_avg(aggregated_model, *models, num_labeled=n_labeled, exclude_fc=False)
+            else:
+                fed_avg(aggregated_model, *models, num_labeled=n_labeled, exclude_fc=False)
             modelagg_sd = torch.save(aggregated_model.state_dict(), PATHAGG)
 
         for client in clients:
