@@ -39,6 +39,7 @@ parser.add_argument('-c', '--clients', type=int, default=2, help="Number of fede
 parser.add_argument('--denoising', action='store_true', help="Exploit unlabeled datasets in a federated scenario by doing image denoising")
 parser.add_argument('--personalization', action='store_true', help="Leave that each client trains its own classifier rather than averaging")
 parser.add_argument('-w', '--weighted', action='store_true', help="Weighted average")
+parser.add_argument('-n', '--noniid', action='store_true', help="Allocate proportion of samples of classes according to a Dirichlet distribution")
 parser.add_argument('--debug', action='store_true', help="Disable WandB metrics tracking")
 args = parser.parse_args()
 
@@ -74,7 +75,9 @@ for myseed in my_seeds:
     else:
         entity = "mlgroup"
         project = "SSFL"
-        if args.denoising and args.personalization:
+        if args.denoising and args.weighted:
+            run_name = f"WFedRec_{myseed}_clients{args.clients}_EpR{args.epochs_per_round}"
+        elif args.denoising and args.personalization:
             run_name = f"PersFedRec_{myseed}_clients{args.clients}_EpR{args.epochs_per_round}"
         elif args.denoising:
             run_name = f"FedRec_{myseed}_clients{args.clients}_EpR{args.epochs_per_round}"
@@ -238,9 +241,10 @@ for myseed in my_seeds:
         test_features, test_target = test_dataset.data, test_dataset.targets
 
         # Utilizziamo la funzione split_data_uniform per ottenere i dati suddivisi tra i clienti
-        X_train_clients, Y_train_clients = split_data_uniform(train_features, train_target, n_clients, rng)
-        X_val_clients, Y_val_clients = split_data_uniform(val_features, val_target, n_clients, rng)
-        X_test_clients, Y_test_clients = split_data_uniform(test_features, test_target, n_clients, rng)
+        
+        X_train_clients, Y_train_clients = split_data(train_features, train_target, n_clients, rng, args.noniid)
+        X_val_clients, Y_val_clients = split_data(val_features, val_target, n_clients, rng, args.noniid)
+        X_test_clients, Y_test_clients = split_data(test_features, test_target, n_clients, rng, args.noniid)
 
         clients = []
 
