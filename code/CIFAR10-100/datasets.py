@@ -5,6 +5,9 @@ import torchvision
 import numpy as np
 import os
 
+from collections import defaultdict
+from numpy.random import dirichlet, choice
+from typing import List, Tuple
 from torchvision import datasets, models, transforms
 from PIL import Image
 
@@ -116,3 +119,88 @@ def split_data_uniform(features, target, num_clients, rng):
     Y_clients = [np.array(client) for client in Y_clients]
 
     return X_clients, Y_clients
+
+'''
+def split_data_dirichlet(features: np.ndarray,
+                         target: np.ndarray,
+                         num_clients: int,
+                         rng: np.random.Generator = np.random.default_rng(),
+                         beta: float = 0.5) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+
+    assert beta > 0, "beta must be > 0"
+    if isinstance(target, list):
+        target = np.array(target)
+    if isinstance(features, list):
+        features = np.array(features)
+    
+    labels = np.unique(target)
+    pk = {c: rng.dirichlet(beta * np.ones(num_clients), size=1)[0] for c in labels}
+    assignment = np.zeros(target.shape[0], dtype=int)
+    
+    X_clients = [[] for _ in range(num_clients)]
+    Y_clients = [[] for _ in range(num_clients)]
+    
+    for c in labels:
+        ids = np.where(target == c)[0]
+        assignment[ids] = rng.choice(num_clients, size=len(ids), p=pk[c])
+        
+    features_clients = [features[assignment==i] for i in range(num_clients)]
+    target_clients = [target[assignment==i] for i in range(num_clients)]
+    
+    return features_clients, target_clients
+'''
+
+def split_data_dirichlet(features, targets, num_clients, alpha=0.5):
+    """
+    Divide i dati tra i client secondo una distribuzione di Dirichlet sulle classi.
+    
+    :param features: numpy array delle feature
+    :param targets: numpy array dei target
+    :param num_clients: numero di client
+    :param alpha: parametro della distribuzione di Dirichlet (maggiore -> più uniformità)
+    :return: tuple con features e targets assegnati ai client
+    """
+    unique_classes = np.unique(targets)
+    data_indices = {c: np.where(targets == c)[0] for c in unique_classes}
+    
+    # Genera le distribuzioni Dirichlet per ciascuna classe
+    class_proportions = {c: np.random.dirichlet(alpha * np.ones(num_clients)) for c in unique_classes}
+    
+    # Assegna gli indici ai client secondo le proporzioni generate
+    client_data_indices = defaultdict(list)
+    
+    for c, indices in data_indices.items():
+        np.random.shuffle(indices)  # Mescola gli indici della classe
+        proportions = (class_proportions[c] * len(indices)).astype(int)
+        
+        # Ensure the proportions sum to the correct number of samples
+        proportions[-1] = len(indices) - np.sum(proportions[:-1])
+        
+        start = 0
+        for client_id, count in enumerate(proportions):
+            if count > 0:  # Only assign indices if count is positive
+                client_data_indices[client_id].extend(indices[start:start+count])
+                start += count
+    
+    # Crea il dataset per ciascun client
+    features_split = []
+    targets_split = []
+    for client_id in range(num_clients):
+        idx = np.array(client_data_indices[client_id], dtype=int)  # Ensure idx is an integer array
+        if len(idx) > 0:  # Check if idx is not empty
+            features_split.append(features[idx])
+            targets_split.append(targets[idx].reshape(-1).tolist())
+        else:
+            features_split.append(np.array([]))  # Append empty array if idx is empty
+            targets_split.append([])  # Append empty list if idx is empty
+    
+    return features_split, targets_split
+
+def split_data(features: np.ndarray, target: np.ndarray, num_clients: int, rng: np.random.Generator, noniid: bool = False) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    """
+    Wrapper function to select between uniform and Dirichlet-based data splitting.
+    """
+    if noniid:
+        return split_data_dirichlet(features, target, num_clients, alpha=0.5)
+    else:
+        return split_data_uniform(features, target, num_clients, rng)
