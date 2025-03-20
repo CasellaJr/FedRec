@@ -2,6 +2,7 @@ import os
 import sys
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 import math
 import itertools
 import random
@@ -40,6 +41,7 @@ parser.add_argument('--denoising', action='store_true', help="Exploit unlabeled 
 parser.add_argument('--personalization', action='store_true', help="Leave that each client trains its own classifier rather than averaging")
 parser.add_argument('-w', '--weighted', action='store_true', help="Weighted average")
 parser.add_argument('-n', '--noniid', action='store_true', help="Allocate proportion of samples of classes according to a Dirichlet distribution")
+parser.add_argument('-a', '--alpha', type=float, default=0.5, help="Parameter of the Dirichlet distribution")
 parser.add_argument('--debug', action='store_true', help="Disable WandB metrics tracking")
 args = parser.parse_args()
 
@@ -232,6 +234,26 @@ for myseed in my_seeds:
         def __init__(self, clients: List[Client]):
             self.clients = clients
 
+    def plot_label_distribution(client_targets, title):
+        num_clients = len(client_targets)
+        num_classes = len(np.unique(np.concatenate(client_targets)))
+
+        class_counts = np.zeros((num_clients, num_classes))
+        
+        for i, targets in enumerate(client_targets):
+            unique, counts = np.unique(targets, return_counts=True)
+            class_counts[i, unique] = counts
+
+        plt.figure(figsize=(10, 5))
+        plt.imshow(class_counts, aspect="auto", cmap="Blues")
+        plt.colorbar(label="Sample Count")
+        plt.xlabel("Class")
+        plt.ylabel("Client")
+        plt.title(title)
+        
+        plt.savefig(title + ".png")  # Salva l'immagine
+        print(f"Grafico salvato come {title}")
+
 
     def create_clients(train_dataset, val_dataset, test_dataset, n_clients, rng):
         # Preleviamo i dati dai dataset, assumendo che siano già array NumPy
@@ -242,9 +264,19 @@ for myseed in my_seeds:
 
         # Utilizziamo la funzione split_data_uniform per ottenere i dati suddivisi tra i clienti
         
-        X_train_clients, Y_train_clients = split_data(train_features, train_target, n_clients, rng, args.noniid)
-        X_val_clients, Y_val_clients = split_data(val_features, val_target, n_clients, rng, args.noniid)
-        X_test_clients, Y_test_clients = split_data(test_features, test_target, n_clients, rng, args.noniid)
+        if args.noniid:
+            X_train_clients, Y_train_clients, X_val_clients, Y_val_clients, X_test_clients, Y_test_clients = split_data_dirichlet(
+                train_features, train_target, 
+                val_features, val_target, 
+                test_features, test_target, 
+                num_clients=n_clients, alpha=args.alpha, seed=myseed
+            )
+            plot_label_distribution(Y_train_clients, f"Label Distribution Among {n_clients} Clients (Dirichlet, alpha={args.alpha})")
+        else:
+            X_train_clients, Y_train_clients = split_data_uniform(train_features, train_target, n_clients, rng)
+            X_val_clients, Y_val_clients = split_data_uniform(val_features, val_target, n_clients, rng)
+            X_test_clients, Y_test_clients = split_data_uniform(test_features, test_target, n_clients, rng)
+            plot_label_distribution(Y_train_clients, f"Label Distribution Among {n_clients} Clients (Uniform)")
 
         clients = []
 

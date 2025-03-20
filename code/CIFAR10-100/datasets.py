@@ -120,87 +120,67 @@ def split_data_uniform(features, target, num_clients, rng):
 
     return X_clients, Y_clients
 
-'''
-def split_data_dirichlet(features: np.ndarray,
-                         target: np.ndarray,
-                         num_clients: int,
-                         rng: np.random.Generator = np.random.default_rng(),
-                         beta: float = 0.5) -> Tuple[List[np.ndarray], List[np.ndarray]]:
 
-    assert beta > 0, "beta must be > 0"
-    if isinstance(target, list):
-        target = np.array(target)
-    if isinstance(features, list):
-        features = np.array(features)
-    
-    labels = np.unique(target)
-    pk = {c: rng.dirichlet(beta * np.ones(num_clients), size=1)[0] for c in labels}
-    assignment = np.zeros(target.shape[0], dtype=int)
-    
-    X_clients = [[] for _ in range(num_clients)]
-    Y_clients = [[] for _ in range(num_clients)]
-    
-    for c in labels:
-        ids = np.where(target == c)[0]
-        assignment[ids] = rng.choice(num_clients, size=len(ids), p=pk[c])
-        
-    features_clients = [features[assignment==i] for i in range(num_clients)]
-    target_clients = [target[assignment==i] for i in range(num_clients)]
-    
-    return features_clients, target_clients
-'''
-
-def split_data_dirichlet(features, targets, num_clients, alpha=0.5):
+def split_data_dirichlet(train_features, train_targets, val_features, val_targets, test_features, test_targets, num_clients, alpha=0.5, seed=None):
     """
-    Divide i dati tra i client secondo una distribuzione di Dirichlet sulle classi.
+    Suddivide i dati tra i client secondo una distribuzione di Dirichlet, mantenendo la stessa distribuzione tra train, val e test.
     
-    :param features: numpy array delle feature
-    :param targets: numpy array dei target
-    :param num_clients: numero di client
-    :param alpha: parametro della distribuzione di Dirichlet (maggiore -> più uniformità)
-    :return: tuple con features e targets assegnati ai client
+    :param train_features: array con le immagini di train
+    :param train_targets: array con le etichette di train
+    :param val_features: array con le immagini di validation
+    :param val_targets: array con le etichette di validation
+    :param test_features: array con le immagini di test
+    :param test_targets: array con le etichette di test
+    :param num_clients: numero di client nella federazione
+    :param alpha: parametro della distribuzione di Dirichlet (controlla la non-IIDness)
+    :param seed: seed per la riproducibilità
+    :return: dizionario con i dati di ogni client per train, val e test
     """
-    unique_classes = np.unique(targets)
-    data_indices = {c: np.where(targets == c)[0] for c in unique_classes}
+    if seed is not None:
+        np.random.seed(seed)
     
-    # Genera le distribuzioni Dirichlet per ciascuna classe
-    class_proportions = {c: np.random.dirichlet(alpha * np.ones(num_clients)) for c in unique_classes}
+    num_classes = len(set(train_targets))
+    client_data = {i: {'train': {'features': [], 'targets': []},
+                        'val': {'features': [], 'targets': []},
+                        'test': {'features': [], 'targets': []}} for i in range(num_clients)}
     
-    # Assegna gli indici ai client secondo le proporzioni generate
-    client_data_indices = defaultdict(list)
+    # Raggruppa gli indici per classe per ciascun set
+    def get_class_indices(features, targets):
+        return {i: np.where(np.array(targets) == i)[0] for i in range(num_classes)}
     
-    for c, indices in data_indices.items():
-        np.random.shuffle(indices)  # Mescola gli indici della classe
-        proportions = (class_proportions[c] * len(indices)).astype(int)
-        
-        # Ensure the proportions sum to the correct number of samples
-        proportions[-1] = len(indices) - np.sum(proportions[:-1])
-        
-        start = 0
-        for client_id, count in enumerate(proportions):
-            if count > 0:  # Only assign indices if count is positive
-                client_data_indices[client_id].extend(indices[start:start+count])
-                start += count
+    train_class_indices = get_class_indices(train_features, train_targets)
+    val_class_indices = get_class_indices(val_features, val_targets)
+    test_class_indices = get_class_indices(test_features, test_targets)
     
-    # Crea il dataset per ciascun client
-    features_split = []
-    targets_split = []
-    for client_id in range(num_clients):
-        idx = np.array(client_data_indices[client_id], dtype=int)  # Ensure idx is an integer array
-        if len(idx) > 0:  # Check if idx is not empty
-            features_split.append(features[idx])
-            targets_split.append(targets[idx].reshape(-1).tolist())
-        else:
-            features_split.append(np.array([]))  # Append empty array if idx is empty
-            targets_split.append([])  # Append empty list if idx is empty
+    # Genera una volta le proporzioni per ogni classe
+    class_proportions = {c: np.random.dirichlet(alpha * np.ones(num_clients)) for c in range(num_classes)}
     
-    return features_split, targets_split
-
-def split_data(features: np.ndarray, target: np.ndarray, num_clients: int, rng: np.random.Generator, noniid: bool = False) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-    """
-    Wrapper function to select between uniform and Dirichlet-based data splitting.
-    """
-    if noniid:
-        return split_data_dirichlet(features, target, num_clients, alpha=0.5)
-    else:
-        return split_data_uniform(features, target, num_clients, rng)
+    # Funzione per assegnare dati ai client
+    def assign_data(features, targets, class_indices, split_name):
+        for c in range(num_classes):
+            indices = class_indices[c]
+            np.random.shuffle(indices)
+            proportions = (np.cumsum(class_proportions[c]) * len(indices)).astype(int)[:-1]
+            client_splits = np.split(indices, proportions)
+            
+            for i, split in enumerate(client_splits):
+                client_data[i][split_name]['features'].extend(features[idx] for idx in split)
+                client_data[i][split_name]['targets'].extend(targets[idx] for idx in split)
+    
+    # Assegna i dati mantenendo la coerenza
+    assign_data(train_features, train_targets, train_class_indices, 'train')
+    assign_data(val_features, val_targets, val_class_indices, 'val')
+    assign_data(test_features, test_targets, test_class_indices, 'test')
+    
+    # Converti liste in array numpy
+    for i in range(num_clients):
+        for split in ['train', 'val', 'test']:
+            client_data[i][split]['features'] = np.array(client_data[i][split]['features'])
+            client_data[i][split]['targets'] = np.array(client_data[i][split]['targets'])
+    
+    return ([client_data[i]['train']['features'] for i in range(num_clients)],
+            [client_data[i]['train']['targets'] for i in range(num_clients)],
+            [client_data[i]['val']['features'] for i in range(num_clients)],
+            [client_data[i]['val']['targets'] for i in range(num_clients)],
+            [client_data[i]['test']['features'] for i in range(num_clients)],
+            [client_data[i]['test']['targets'] for i in range(num_clients)])
