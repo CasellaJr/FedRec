@@ -82,6 +82,17 @@ def import_unlabeled_data(dataset_name):
 
     return train_data
 
+def split_features_uniform(features, n_clients, rng):
+    # Similar to split_data_uniform but only for features
+    n_samples = len(features)
+    indices = np.arange(n_samples)
+    rng.shuffle(indices)
+    
+    features_shuffled = features[indices]
+    features_split = np.array_split(features_shuffled, n_clients)
+    
+    return features_split
+
 def split_data_uniform(features, target, num_clients, rng):
     # Controlla se il numero di clienti è valido
     if num_clients <= 0:

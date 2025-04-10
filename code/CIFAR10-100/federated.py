@@ -77,15 +77,19 @@ for myseed in my_seeds:
     else:
         entity = "mlgroup"
         project = "SSFL"
-        if args.denoising and args.weighted:
+        if args.denoising and args.noniid and args.weighted:
+            run_name = f"WFedRec_{myseed}_clients{args.clients}_Dirichlet_{args.alpha}"
+        if args.denoising and args.noniid and args.weighted==False:
+            run_name = f"FedRec_{myseed}_clients{args.clients}_Dirichlet_{args.alpha}"
+        elif args.denoising and args.weighted and args.noniid==False:
             run_name = f"WFedRec_{myseed}_clients{args.clients}_EpR{args.epochs_per_round}"
         elif args.denoising and args.personalization:
             run_name = f"PersFedRec_{myseed}_clients{args.clients}_EpR{args.epochs_per_round}"
-        elif args.denoising:
+        elif args.denoising and args.noniid==False and args.weighted==False:
             run_name = f"FedRec_{myseed}_clients{args.clients}_EpR{args.epochs_per_round}"
         elif args.personalization:
             run_name = f"PersBaseline_{myseed}_clients{args.clients}_EpR{args.epochs_per_round}"
-        else:
+        elif args.denoising==False and args.noniid==False and args.weighted==False and args.personalization==False:
             run_name = f"Baseline_{myseed}_clients{args.clients}_EpR{args.epochs_per_round}"
         tags = ["FL", "SSFL"]
         if run_name in run_names:
@@ -106,7 +110,7 @@ for myseed in my_seeds:
             self.scheduler = None
             self.train_loader = None
             self.test_loader = None
-            self.importance = False
+            self.importance = True
             
         def create_model(self):
             if num_classes == 2:
@@ -205,7 +209,7 @@ for myseed in my_seeds:
             self.optimizer = None
             self.scheduler = None
             self.train_loader = None
-            self.importance = True
+            self.importance = False
             
         def create_model(self):
             self.model = DenoisingResNet()
@@ -297,6 +301,23 @@ for myseed in my_seeds:
             clients.append(client)
 
         return clients
+    
+    def create_unlabeled_clients(train_dataset, n_clients, rng):
+        # Get the data from the dataset (only features, no labels)
+        train_features = train_dataset.dataset.data  # Access the underlying CIFAR data
+        
+        # Since it's unlabeled, we don't have Y values
+        # We'll split only the features uniformly
+        X_train_clients = split_features_uniform(train_features, n_clients, rng)
+        
+        unlabeled_clients = []
+        
+        for i in range(n_clients):
+            X_train_tensor = torch.from_numpy(X_train_clients[i]).permute(0, 3, 1, 2).float()
+            client = UnlabeledClient(X_train_tensor, labeled='no')
+            unlabeled_clients.append(client)
+        
+        return unlabeled_clients
 
     #dev
     torch.cuda.is_available()
@@ -327,12 +348,14 @@ for myseed in my_seeds:
     if args.denoising:
         cifar10_train_data = import_unlabeled_data("cifar10")
         criterion_unlabeled = nn.MSELoss()
-        client_cifar10 = UnlabeledClient(cifar10_train_data, labeled='no')
-
+        client_cifar10 = create_unlabeled_clients(cifar10_train_data, n_clients, rng)
+        
+        #client_cifar10 = UnlabeledClient(cifar10_train_data, labeled='no')
         #clients = [client_cifar100, client_cifar10]
-        clients = [cifar100_clients, [client_cifar10]]
+        clients = [cifar100_clients, client_cifar10]
         clients = list(itertools.chain(*clients))
-        unlabeled_clients = [client_cifar10]
+        unlabeled_clients = client_cifar10
+        
     else:
         #clients = [client_cifar100]
         clients = [cifar100_clients]
