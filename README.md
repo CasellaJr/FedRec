@@ -22,10 +22,8 @@ Please cite as:
   title   = {Federated Learning in a Semi-Supervised Environment for Earth Observation Data,
   booktitle    = {32nd European Symposium on Artificial Neural Networks, Computational Intelligence and Machine Learning, {ESANN} 2024, Bruges, Belgium, October 9-11, 2024},
   year         = {2024},
-  doi          = {},
-  pages = {},
-  publisher = {},
-  url = {}
+  doi          = {10.14428/ESANN/2024.ES2024-214},
+  url = {https://doi.org/10.14428/esann/2024.ES2024-214}
 }
 ```
 
